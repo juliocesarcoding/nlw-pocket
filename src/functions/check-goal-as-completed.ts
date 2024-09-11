@@ -23,7 +23,8 @@ export async function checkGoalAsCompleted({
       .where(
         and(
           gte(goalCompletions.completedAt, firstDayOfWeek),
-          lte(goalCompletions.completedAt, lastDayOfWeek)
+          lte(goalCompletions.completedAt, lastDayOfWeek),
+          eq(goalCompletions.goalId, goalId)
         )
       )
       .groupBy(goalCompletions.goalId)
@@ -38,10 +39,19 @@ export async function checkGoalAsCompleted({
     })
     .from(goals)
     .leftJoin(goalCompletionCounts, eq(goalCompletionCounts.goalId, goals.id))
+    .where(eq(goals.id, goalId))
 
-  //   const result = await db.insert(goalCompletions).values({ goalId }).returning()
+  const { completionCount, desiredWeeklyFrequency } = resultOne[0]
 
-  //   const goalCompleted = result[0]
+  if (completionCount >= desiredWeeklyFrequency) {
+    throw new Error('Goal already completed this week!')
+  }
 
-  return { resultOne }
+  const insertResult = await db
+    .insert(goalCompletions)
+    .values({ goalId })
+    .returning()
+  const goalCompletion = insertResult[0]
+
+  return goalCompletion
 }
