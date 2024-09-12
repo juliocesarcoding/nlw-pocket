@@ -2,7 +2,7 @@ import dayjs from 'dayjs'
 import weekOfYear from 'dayjs/plugin/weekOfYear'
 import { db } from '../db'
 import { goalCompletions, goals } from '../db/schema'
-import { and, eq, lte, count, gte, sql } from 'drizzle-orm'
+import { and, eq, lte, count, gte, sql, sum } from 'drizzle-orm'
 
 export async function getWeekSummary() {
   const firstDayOfWeek = dayjs().startOf('week').toDate()
@@ -58,7 +58,21 @@ export async function getWeekSummary() {
 
   const result = await db
     .with(goalsCreatedUpToWeek, goalsCompletedInWeek, goalsCompletedbyWeekDay)
-    .select()
+    .select({
+      completed: sql`(SELECT COUNT(*) FROM ${goalsCompletedInWeek})`.mapWith(
+        Number
+      ),
+      total:
+        sql`(SELECT SUM(${goalsCreatedUpToWeek.desiredWeeklyFrequency}) FROM ${goalsCreatedUpToWeek})`.mapWith(
+          Number
+        ),
+      goalsPerDay: sql`
+        JSON_OBJECT_AGG(
+        ${goalsCompletedbyWeekDay.completedAtDate}, 
+        ${goalsCompletedbyWeekDay.completions}
+        )
+        `,
+    })
     .from(goalsCompletedbyWeekDay)
 
   return { summary: result }
